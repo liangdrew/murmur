@@ -1,40 +1,36 @@
 package com.liangdrew.murmur
 
-import akka.actor.{Actor, ActorRef, Terminated}
+import akka.actor.ActorSystem
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.model._
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.Route
+import akka.stream.ActorMaterializer
+import com.liangdrew.murmur.services.TestService
+import com.typesafe.config.{Config, ConfigFactory}
 
-class Server extends Actor with MessageTypes {
+import scala.io.StdIn
 
-    var clients = List[(String, ActorRef)]();
+object Server extends App {
 
-    def receive = {
+    // Actor needs ActorSystem to operate
+    implicit val system = ActorSystem("murmur")
+    // Flow needs ActorMaterializer to stream data
+    implicit val materializer = ActorMaterializer
+    // needed for the future flatMap/onComplete in the end
+    implicit val executionContext = system.dispatcher
 
-        case ConnectToServer(username) => {
-            broadcast(Info(f"$username%s has joined the room"))
-            // :: (cons, i.e. construct operator makes a new list appending A to B, where the syntax is A :: B
-            clients = (username, sender) :: clients
-            // context.watch will notify Server actor when client actor is killed or stopped
-            context.watch(sender)
-        }
-        case BroadcastMessage(message) => {
-            val username = getUsername(sender)
-            broadcast(NewMessage(username, message))
-        }
-        case Terminated(client) => {
-            val username = getUsername(client)
-            // Remove the client from collection of clients, x._2 returns the second element of the tuple x
-            clients = clients.filter(sender != _._2)
-            broadcast(Info(f"$username%s has left the room"))
-        }
-    }
+    val systemConfigs: Config = ConfigFactory.load()
+    val hostname = systemConfigs.getString("murmur.http.hostname")
+    val port = systemConfigs.getInt("murmur.http.port")
 
-    def broadcast(message: Message) {
-        // send message to all clients
-        clients.foreach(client => client._2 ! message)
-    }
+    val route = TestService.route
 
-    def getUsername(actor: ActorRef): String = {
-        clients.filter(actor == _._2).head._1
-    }
+    val bindingFuture = Http().bindAndHandle(route, hostname, port)
+    println(s"Server is up at http://$hostname:$port\nPress RETURN to stop...")
+    StdIn.readLine() // let it run until user presses return
 
+    bindingFuture
+        .flatMap(_.unbind()) // Trigger unbinding from the port
+        .onComplete(_ => system.terminate()) // Shut down when done
 }
-
