@@ -29,17 +29,11 @@ object Server extends App {
 
     val requestHandler: HttpRequest => HttpResponse = {
         case HttpRequest(GET, Uri.Path("/"), _, _, _) =>
-            HttpResponse(entity = HttpEntity(
-                ContentTypes.`text/html(UTF-8)`, "<html><body>Hello world!</body></html>")
-            )
-        case HttpRequest(GET, Uri.Path("/ping"), _, _, _) =>
-            HttpResponse(entity = "PONG!")
-        case HttpRequest(GET, Uri.Path("/crash"), _, _, _) =>
-            HttpResponse(entity = "BOOM!")
+            HttpResponse(entity = "Server is up!")
         case r: HttpRequest =>
             // Drain incoming HTTP entity stream
             r.discardEntityBytes()
-            HttpResponse(404, entity = "Unknown resource!")
+            HttpResponse(404, entity = "Unknown resource")
     }
 
     val bindingFuture: Future[ServerBinding] =
