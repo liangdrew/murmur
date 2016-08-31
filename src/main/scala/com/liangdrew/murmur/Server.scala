@@ -3,10 +3,8 @@ package com.liangdrew.murmur
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.Http.ServerBinding
-import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.HttpMethods._
+import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.Sink
 import com.typesafe.config.{Config, ConfigFactory}
 
 import scala.concurrent.Future
@@ -25,23 +23,22 @@ object Server extends App {
     val hostname = systemConfigs.getString("murmur.http.hostname")
     val port = systemConfigs.getInt("murmur.http.port")
 
-    val serverSource = Http().bind(interface = hostname, port = port)
+    val route =
+        pathEndOrSingleSlash {
+            get {
+                complete("server is up")
+            }
+        } ~
+        path("room_id" / IntNumber) { room_id =>
+            parameter('name) { username =>
+                handleWebSocketMessages(
+                    ChatRooms
+                        .findRoomElseCreateNew(room_id)
+                        .websocketFlow(username))
+            }
+        }
 
-    val requestHandler: HttpRequest => HttpResponse = {
-        case HttpRequest(GET, Uri.Path("/"), _, _, _) =>
-            HttpResponse(entity = "Server is up!")
-        case r: HttpRequest =>
-            // Drain incoming HTTP entity stream
-            r.discardEntityBytes()
-            HttpResponse(404, entity = "Unknown resource")
-    }
-
-    val bindingFuture: Future[ServerBinding] =
-        serverSource.to(Sink.foreach { connection =>
-            println("Accepted new connection from " + connection.remoteAddress)
-
-            connection handleWithSyncHandler requestHandler
-        }).run()
+    val bindingFuture: Future[ServerBinding] = Http().bindAndHandle(route, hostname, port)
 
     bindingFuture.onFailure {
         case ex: Exception =>
