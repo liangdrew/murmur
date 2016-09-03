@@ -1,4 +1,4 @@
-package com.liangdrew.murmur
+package com.liangdrew.murmur.chat
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
@@ -30,7 +30,7 @@ object Server extends App {
             }
         } ~
         path("room_id" / IntNumber) { room_id =>
-            parameter('name) { username =>
+            parameter('username) { username =>
                 handleWebSocketMessages(
                     ChatRooms
                         .findRoomElseCreateNew(room_id)
