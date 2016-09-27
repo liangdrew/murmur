@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+java -jar cl-client/target/scala-2.11/cl-client-assembly-0.1.jar
